@@ -14,14 +14,25 @@ func Test_GetBroadcastData(t *testing.T) {
 	tx := querytest.PrepareTx(t)
 	q := queries.New(tx)
 
-	// Simulate a completed broadcast (1) with a handful of screenings, and an
-	// in-progress broadcast (2) with one tape, still being screened
+	// Simulate a completed broadcast (1) and an in-progress broadcast (2)
 	_, err := tx.Exec(`
 		INSERT INTO broadcasts.broadcast (id, started_at, ended_at, vod_url) VALUES
 			(1, now() - '12h'::interval, now() - '10h'::interval, 'https://vods.com/1'),
 			(2, now() - '2h'::interval, NULL, NULL);
 	`)
 	assert.NoError(t, err)
+
+	// If we query for data with no screenings present, we should still get results
+	rows, err := q.GetBroadcastDataEx(context.Background(), queries.GetBroadcastDataParams{})
+	assert.NoError(t, err)
+	assert.Len(t, rows, 2)
+	assert.Equal(t, 2, rows[0].Id)
+	assert.Len(t, rows[0].Screenings, 0)
+	assert.Equal(t, 1, rows[1].Id)
+	assert.Len(t, rows[1].Screenings, 0)
+
+	// Add a few completed screenings to broadcast 1, and add an in-progress screening
+	// for broadcast 2
 	_, err = tx.Exec(`
 		INSERT INTO broadcasts.screening (id, broadcast_id, tape_id, started_at, ended_at) VALUES
 			('6c2c94e3-db0c-4367-8ce7-e86f98ac03d0', 1, 40, now() - '11h30m'::interval, now() - '11h'::interval),
@@ -33,7 +44,7 @@ func Test_GetBroadcastData(t *testing.T) {
 
 	// If we query for recent broadcast data with no params, we should get data for
 	// both, in descending order (most recent first)
-	rows, err := q.GetBroadcastDataEx(context.Background(), queries.GetBroadcastDataParams{})
+	rows, err = q.GetBroadcastDataEx(context.Background(), queries.GetBroadcastDataParams{})
 	assert.NoError(t, err)
 	assert.Len(t, rows, 2)
 	assert.Equal(t, 2, rows[0].Id)
