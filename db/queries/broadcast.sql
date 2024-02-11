@@ -5,6 +5,7 @@ select
     broadcast.ended_at,
     coalesce(
         json_agg(json_build_object(
+            'id', screening.id,
             'tape_id', screening.tape_id,
             'started_at', screening.started_at,
             'ended_at', coalesce(screening.ended_at, broadcast.ended_at)
