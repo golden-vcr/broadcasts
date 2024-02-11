@@ -1,0 +1,126 @@
+openapi: 3.0.3
+info:
+  version: 0.1.0
+  title: broadcasts
+  description: |
+    The **broadcasts** service keeps track of broadcast state: namely, whether the
+    stream is live, and which tape is being screened (if any). This state is stored in a
+    database, and historical data about past broadcasts is made available through this
+    API.
+externalDocs:
+  description: 'github.com/golden-vcr/broadcasts'
+  url: https://github.com/golden-vcr/broadcasts
+servers:
+  - url: https://goldenvcr.com/api/broadcasts
+tags:
+  - name: admin
+    description: |-
+      Endpoints that allow the broadcaster to directly control broadcast state
+  - name: history
+    description: |-
+      Endpoints that serve historical data about past broadcasts
+  - name: state
+    description: |-
+      SSE endpoints for real-time notifications of broadcast state changes
+paths:
+  /admin/tape/{id}:
+    post:
+      tags:
+        - admin
+      summary: |-
+        Initiates a new screening in the current broadcast
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          required: true
+          description: ID of the tape to begin screening
+      security:
+        - twitchUserAccessToken: []
+      description: |-
+        Requires **broadcaster** authorization. If a broadcast is currently in progress,
+        ends any existing screenings for that broadcast, then creates a new screening
+        for the tape indicated by `id`.
+      responses:
+        '204':
+          description: |-
+            A new screening for the requested tape ID was successfully created in the
+            context of the current, in-progress broadcast. If any prior screenings
+            already existed in the same broadcast, they have now been ended.
+        '400':
+          description: |-
+            A screening could not be created because no broadcast is currently in
+            progress.
+        '401':
+          description: |-
+            Unauthenticated; client identity could not be verified.
+        '403':
+          description: |-
+            Unauthorized; client is not the broadcaster.
+  /admin/tape:
+    delete:
+      tags:
+        - admin
+      summary: |-
+        Ends any in-progress screenings in the current broadcast
+      security:
+        - twitchUserAccessToken: []
+      description: |-
+        Requires **broadcaster** authorization. If a broadcast is currently in progress,
+        ends any existing screenings for that broadcast.
+      responses:
+        '204':
+          description: |-
+            We have successfully ensured that all in-progress screenings for the current
+            broadcast have been ended. The response is the same regardless of whether
+            there actually _were_ any such screenings.
+        '400':
+          description: |-
+            No state changes could be made to screenings because no broadcast is
+            currently in progress.
+        '401':
+          description: |-
+            Unauthenticated; client identity could not be verified.
+        '403':
+          description: |-
+            Unauthorized; client is not the broadcaster.
+  /history:
+    post:
+      tags:
+        - history
+      summary: |-
+        Returns the details of multiple past broadcasts
+      operationId: getHistory
+      responses:
+        '200':
+          description: |-
+            OK; broadcast history follows.
+  /history/{broadcastId}:
+    get:
+      tags:
+        - history
+      summary: |-
+        Returns the details of a single broadcast
+      operationId: getHistoryById
+      parameters:
+        - in: path
+          name: broadcastId
+          schema:
+            type: integer
+          required: true
+      responses:
+        '200':
+          description: |-
+            OK; broadcast details follow.
+  /state:
+    get:
+      tags:
+        - state
+      summary: |-
+        Opens an event stream into which broadcast state changes will be written
+components:
+  securitySchemes:
+    twitchUserAccessToken:
+      type: http
+      scheme: bearer
