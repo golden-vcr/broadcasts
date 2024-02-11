@@ -2,24 +2,29 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"os"
 
 	"github.com/codingconcepts/env"
+	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	amqp "github.com/rabbitmq/amqp091-go"
-	"golang.org/x/sync/errgroup"
 
+	"github.com/golden-vcr/auth"
 	"github.com/golden-vcr/broadcasts/gen/queries"
+	"github.com/golden-vcr/broadcasts/internal/admin"
 	"github.com/golden-vcr/broadcasts/internal/state"
-	etwitch "github.com/golden-vcr/schemas/twitch-events"
 	"github.com/golden-vcr/server-common/db"
 	"github.com/golden-vcr/server-common/entry"
 	"github.com/golden-vcr/server-common/rmq"
 )
 
 type Config struct {
+	BindAddr   string `env:"BIND_ADDR"`
+	ListenPort uint16 `env:"LISTEN_PORT" default:"5007"`
+
+	AuthURL string `env:"AUTH_URL" default:"http://localhost:5002"`
+
 	DatabaseHost     string `env:"PGHOST" required:"true"`
 	DatabasePort     int    `env:"PGPORT" required:"true"`
 	DatabaseName     string `env:"PGDATABASE" required:"true"`
@@ -35,7 +40,7 @@ type Config struct {
 }
 
 func main() {
-	app, ctx := entry.NewApplication("broadcasts-consumer")
+	app, ctx := entry.NewApplication("broadcasts")
 	defer app.Stop()
 
 	// Parse config from environment variables
@@ -75,6 +80,13 @@ func main() {
 	}
 	defer amqpConn.Close()
 
+	// Initialize an auth client so we can require broadcaster-level access in order to
+	// call the admin-only API
+	authClient, err := auth.NewClient(ctx, config.AuthURL)
+	if err != nil {
+		app.Fail("Failed to initialize auth client", err)
+	}
+
 	// Prepare a producer that we can use to send messages to the broadcast-events
 	// queue
 	broadcastEventsProducer, err := rmq.NewProducer(amqpConn, "broadcast-events")
@@ -82,64 +94,20 @@ func main() {
 		app.Fail("Failed to initialize AMQP producer for broadcast-events", err)
 	}
 
-	// Prepare a consumer and start receiving incoming messages from the twitch-events
-	// exchange: when the stream state changes, we'll automatically start/end a
-	// broadcast by producing to broadcast-events
-	twitchEventsConsumer, err := rmq.NewConsumer(amqpConn, "twitch-events")
-	if err != nil {
-		app.Fail("Failed to initialize AMQP consumer for twitch-events", err)
-	}
-	twitchEvents, err := twitchEventsConsumer.Recv(ctx)
-	if err != nil {
-		app.Fail("Failed to init recv channel on twitch-events consumer", err)
-	}
-
 	// Prepare a state.Writer interface, allowing us authoritatively modify the current
 	// broadcast state in a way that propagates to the DB and the broadcast-events queue
 	writer := state.NewWriter(q, broadcastEventsProducer)
 
-	// Each time we read a message from the queue, spin up a new goroutine for that
-	// message, parse it according to our twitch-events schema, then handle it
-	wg, ctx := errgroup.WithContext(ctx)
-	done := false
-	for !done {
-		select {
-		case <-ctx.Done():
-			app.Log().Info("Consumer context canceled; exiting main loop")
-			done = true
-		case d, ok := <-twitchEvents:
-			if ok {
-				wg.Go(func() error {
-					var ev etwitch.Event
-					if err := json.Unmarshal(d.Body, &ev); err != nil {
-						return err
-					}
-					switch ev.Type {
-					case etwitch.EventTypeStreamStarted:
-						broadcast, err := writer.StartBroadcast(ctx)
-						if err != nil {
-							app.Log().Error("Failed to start broadcast", "error", err)
-						} else {
-							app.Log().Info("Started broadcast", "broadcast", broadcast)
-						}
-					case etwitch.EventTypeStreamEnded:
-						err := writer.EndCurrentBroadcast(ctx)
-						if err != nil {
-							app.Log().Error("Failed to end broadcast", "error", err)
-						} else {
-							app.Log().Info("Ended broadcast")
-						}
-					}
-					return nil
-				})
-			} else {
-				app.Log().Info("Channel is closed; exiting main loop")
-				done = true
-			}
-		}
+	// Start setting up our HTTP handlers, using gorilla/mux for routing
+	r := mux.NewRouter()
+
+	// We can call the broadcaster-only admin API to directly modify broadcast state
+	{
+		adminServer := admin.NewServer(writer)
+		adminServer.RegisterRoutes(authClient, r)
 	}
 
-	if err := wg.Wait(); err != nil {
-		app.Fail("Encountered an error during message handling", err)
-	}
+	// Handle incoming HTTP connections until our top-level context is canceled, at
+	// which point shut down cleanly
+	entry.RunServer(ctx, app.Log(), r, config.BindAddr, config.ListenPort)
 }

@@ -23,7 +23,7 @@ tags:
     description: |-
       SSE endpoints for real-time notifications of broadcast state changes
 paths:
-  /admin/tape/{id}:
+  /tape/{id}:
     post:
       tags:
         - admin
@@ -58,7 +58,7 @@ paths:
         '403':
           description: |-
             Unauthorized; client is not the broadcaster.
-  /admin/tape:
+  /tape:
     delete:
       tags:
         - admin
