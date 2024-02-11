@@ -68,3 +68,60 @@ func Test_GetBroadcastData(t *testing.T) {
 	assert.Len(t, rows, 1)
 	assert.Equal(t, 1, rows[0].Id)
 }
+
+func Test_StartBroadcast(t *testing.T) {
+	tx := querytest.PrepareTx(t)
+	q := queries.New(tx)
+
+	querytest.AssertCount(t, tx, 0, "SELECT COUNT(*) FROM broadcasts.broadcast")
+
+	row, err := q.StartBroadcast(context.Background())
+	assert.NoError(t, err)
+
+	querytest.AssertCount(t, tx, 1, `
+		SELECT COUNT(*) FROM broadcasts.broadcast
+			WHERE id = $1
+			AND ended_at IS NULL
+	`, row.ID)
+}
+
+func Test_ResumeBroadcast(t *testing.T) {
+	tx := querytest.PrepareTx(t)
+	q := queries.New(tx)
+
+	querytest.AssertCount(t, tx, 0, "SELECT COUNT(*) FROM broadcasts.broadcast")
+
+	row, err := q.StartBroadcast(context.Background())
+	assert.NoError(t, err)
+	result, err := q.EndBroadcast(context.Background(), row.ID)
+	assert.NoError(t, err)
+	querytest.AssertNumRowsChanged(t, result, 1)
+	result, err = q.ResumeBroadcast(context.Background(), row.ID)
+	assert.NoError(t, err)
+	querytest.AssertNumRowsChanged(t, result, 1)
+
+	querytest.AssertCount(t, tx, 1, `
+		SELECT COUNT(*) FROM broadcasts.broadcast
+			WHERE id = $1
+			AND ended_at IS NULL
+	`, row.ID)
+}
+
+func Test_EndBroadcast(t *testing.T) {
+	tx := querytest.PrepareTx(t)
+	q := queries.New(tx)
+
+	querytest.AssertCount(t, tx, 0, "SELECT COUNT(*) FROM broadcasts.broadcast")
+
+	row, err := q.StartBroadcast(context.Background())
+	assert.NoError(t, err)
+	result, err := q.EndBroadcast(context.Background(), row.ID)
+	assert.NoError(t, err)
+	querytest.AssertNumRowsChanged(t, result, 1)
+
+	querytest.AssertCount(t, tx, 1, `
+		SELECT COUNT(*) FROM broadcasts.broadcast
+			WHERE id = $1
+			AND ended_at IS NOT NULL
+	`, row.ID)
+}

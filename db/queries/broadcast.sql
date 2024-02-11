@@ -15,3 +15,18 @@ where broadcast.id < coalesce(sqlc.narg('before_broadcast_id'), 2147483647)
 group by broadcast.id
 order by broadcast.id desc
 limit coalesce(sqlc.narg('limit')::integer, 10);
+
+-- name: StartBroadcast :one
+insert into broadcasts.broadcast (started_at)
+values (now())
+returning broadcast.id, broadcast.started_at;
+
+-- name: ResumeBroadcast :execresult
+update broadcasts.broadcast set ended_at = null
+where broadcast.id = sqlc.arg('broadcast_id')
+    and broadcast.ended_at is not null;
+
+-- name: EndBroadcast :execresult
+update broadcasts.broadcast set ended_at = now()
+where broadcast.id = sqlc.arg('broadcast_id')
+    and broadcast.ended_at is null;

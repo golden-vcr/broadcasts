@@ -12,6 +12,16 @@ import (
 	"time"
 )
 
+const endBroadcast = `-- name: EndBroadcast :execresult
+update broadcasts.broadcast set ended_at = now()
+where broadcast.id = $1
+    and broadcast.ended_at is null
+`
+
+func (q *Queries) EndBroadcast(ctx context.Context, broadcastID int32) (sql.Result, error) {
+	return q.db.ExecContext(ctx, endBroadcast, broadcastID)
+}
+
 const getBroadcastData = `-- name: GetBroadcastData :many
 select
     broadcast.id,
@@ -69,4 +79,32 @@ func (q *Queries) GetBroadcastData(ctx context.Context, arg GetBroadcastDataPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const resumeBroadcast = `-- name: ResumeBroadcast :execresult
+update broadcasts.broadcast set ended_at = null
+where broadcast.id = $1
+    and broadcast.ended_at is not null
+`
+
+func (q *Queries) ResumeBroadcast(ctx context.Context, broadcastID int32) (sql.Result, error) {
+	return q.db.ExecContext(ctx, resumeBroadcast, broadcastID)
+}
+
+const startBroadcast = `-- name: StartBroadcast :one
+insert into broadcasts.broadcast (started_at)
+values (now())
+returning broadcast.id, broadcast.started_at
+`
+
+type StartBroadcastRow struct {
+	ID        int32
+	StartedAt time.Time
+}
+
+func (q *Queries) StartBroadcast(ctx context.Context) (StartBroadcastRow, error) {
+	row := q.db.QueryRowContext(ctx, startBroadcast)
+	var i StartBroadcastRow
+	err := row.Scan(&i.ID, &i.StartedAt)
+	return i, err
 }
