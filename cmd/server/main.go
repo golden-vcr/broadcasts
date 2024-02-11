@@ -13,6 +13,7 @@ import (
 	"github.com/golden-vcr/auth"
 	"github.com/golden-vcr/broadcasts/gen/queries"
 	"github.com/golden-vcr/broadcasts/internal/admin"
+	"github.com/golden-vcr/broadcasts/internal/history"
 	"github.com/golden-vcr/broadcasts/internal/state"
 	"github.com/golden-vcr/server-common/db"
 	"github.com/golden-vcr/server-common/entry"
@@ -104,7 +105,13 @@ func main() {
 	// We can call the broadcaster-only admin API to directly modify broadcast state
 	{
 		adminServer := admin.NewServer(writer)
-		adminServer.RegisterRoutes(authClient, r)
+		adminServer.RegisterRoutes(authClient, r.PathPrefix("/admin").Subrouter())
+	}
+
+	// Anyone can call the history API to get data about past broadcasts
+	{
+		historyServer := history.NewServer(q)
+		historyServer.RegisterRoutes(r)
 	}
 
 	// Handle incoming HTTP connections until our top-level context is canceled, at
