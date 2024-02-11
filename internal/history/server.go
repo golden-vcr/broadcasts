@@ -32,6 +32,35 @@ func (s *Server) RegisterRoutes(r *mux.Router) {
 }
 
 func (s *Server) handleGetHistory(res http.ResponseWriter, req *http.Request) {
+	// Accept 'n' and 'before' query params to scope our request and allow pagination
+	arg := queries.GetBroadcastDataParams{}
+	if nStr := req.URL.Query().Get("n"); nStr != "" {
+		if n, err := strconv.Atoi(nStr); err == nil && n > 0 && n <= 100 {
+			arg.Limit.Valid = true
+			arg.Limit.Int32 = int32(n)
+		}
+	}
+	if beforeStr := req.URL.Query().Get("before"); beforeStr != "" {
+		if before, err := strconv.Atoi(beforeStr); err == nil {
+			arg.BeforeBroadcastID.Valid = true
+			arg.BeforeBroadcastID.Int32 = int32(before)
+		}
+	}
+
+	// Query the requested range
+	rows, err := s.q.GetBroadcastDataEx(req.Context(), arg)
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Return a JSON object that contains our result set
+	result := broadcasts.History{
+		Broadcasts: rows,
+	}
+	if err := json.NewEncoder(res).Encode(result); err != nil {
+		http.Error(res, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 func (s *Server) handleGetHistoryById(res http.ResponseWriter, req *http.Request) {
