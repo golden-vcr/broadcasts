@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -58,17 +57,13 @@ func (s *Server) handleGetHistoryById(res http.ResponseWriter, req *http.Request
 		http.Error(res, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if len(rows) == 0 {
+	if len(rows) == 0 || rows[0].Id != broadcastId {
 		http.Error(res, "no such broadcast", http.StatusNotFound)
-		return
-	}
-	broadcast := rows[0]
-	if broadcast.Id != broadcastId {
-		http.Error(res, fmt.Sprintf("expected to get data for broadcast %d; got %d instead", broadcastId, broadcast.Id), http.StatusInternalServerError)
 		return
 	}
 
 	// We have the requested data; return it JSON-serialized
+	broadcast := rows[0]
 	if err := json.NewEncoder(res).Encode(broadcast); err != nil {
 		http.Error(res, err.Error(), http.StatusInternalServerError)
 	}
