@@ -36,18 +36,18 @@ func Test_GetBroadcastData(t *testing.T) {
 	rows, err := q.GetBroadcastDataEx(context.Background(), queries.GetBroadcastDataParams{})
 	assert.NoError(t, err)
 	assert.Len(t, rows, 2)
-	assert.Equal(t, int32(2), rows[0].ID)
+	assert.Equal(t, 2, rows[0].Id)
 	assert.Len(t, rows[0].Screenings, 1)
-	assert.Equal(t, int32(1), rows[1].ID)
+	assert.Equal(t, 1, rows[1].Id)
 	assert.Len(t, rows[1].Screenings, 3)
 
 	// Our most recent broadcast (at index 0) should still be in progress, and its one
 	// and only screening should be in progress as well
-	assert.False(t, rows[0].EndedAt.Valid)
+	assert.Nil(t, rows[0].EndedAt)
 	assert.Nil(t, rows[0].Screenings[0].EndedAt)
 
 	// Our prior broadcast should be finished
-	assert.True(t, rows[1].EndedAt.Valid)
+	assert.NotNil(t, rows[1].EndedAt)
 	assert.NotNil(t, rows[1].Screenings[0].EndedAt)
 	assert.NotNil(t, rows[1].Screenings[1].EndedAt)
 	assert.NotNil(t, rows[1].Screenings[2].EndedAt)
@@ -58,7 +58,7 @@ func Test_GetBroadcastData(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Len(t, rows, 1)
-	assert.Equal(t, int32(2), rows[0].ID)
+	assert.Equal(t, 2, rows[0].Id)
 
 	// Asking for broadcasts prior to broadcast 2 should give us broadcast 1 only
 	rows, err = q.GetBroadcastDataEx(context.Background(), queries.GetBroadcastDataParams{
@@ -66,5 +66,5 @@ func Test_GetBroadcastData(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Len(t, rows, 1)
-	assert.Equal(t, int32(1), rows[0].ID)
+	assert.Equal(t, 1, rows[0].Id)
 }
