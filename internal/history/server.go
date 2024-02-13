@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -14,6 +15,7 @@ import (
 
 type Queries interface {
 	GetBroadcastDataEx(ctx context.Context, arg queries.GetBroadcastDataParams) ([]broadcasts.Broadcast, error)
+	GetScreeningHistory(ctx context.Context) ([]queries.GetScreeningHistoryRow, error)
 }
 
 type Server struct {
@@ -29,6 +31,7 @@ func NewServer(q *queries.Queries) *Server {
 func (s *Server) RegisterRoutes(r *mux.Router) {
 	r.Path("/history").Methods("GET").HandlerFunc(s.handleGetHistory)
 	r.Path("/history/{id}").Methods("GET").HandlerFunc(s.handleGetHistoryById)
+	r.Path("/screening-history").Methods("GET").HandlerFunc(s.handleGetScreeningHistory)
 }
 
 func (s *Server) handleGetHistory(res http.ResponseWriter, req *http.Request) {
@@ -94,6 +97,31 @@ func (s *Server) handleGetHistoryById(res http.ResponseWriter, req *http.Request
 	// We have the requested data; return it JSON-serialized
 	broadcast := rows[0]
 	if err := json.NewEncoder(res).Encode(broadcast); err != nil {
+		http.Error(res, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (s *Server) handleGetScreeningHistory(res http.ResponseWriter, req *http.Request) {
+	rows, err := s.q.GetScreeningHistory(req.Context())
+	if err != nil {
+		http.Error(res, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	broadcastIdsByTapeId := make(map[string][]int)
+	for _, row := range rows {
+		broadcastIds := make([]int, 0, len(row.BroadcastIds))
+		for _, broadcastId := range row.BroadcastIds {
+			broadcastIds = append(broadcastIds, int(broadcastId))
+		}
+		tapeIdStr := fmt.Sprintf("%d", row.TapeID)
+		broadcastIdsByTapeId[tapeIdStr] = broadcastIds
+	}
+
+	result := broadcasts.ScreeningHistory{
+		BroadcastIdsByTapeId: broadcastIdsByTapeId,
+	}
+	if err := json.NewEncoder(res).Encode(result); err != nil {
 		http.Error(res, err.Error(), http.StatusInternalServerError)
 	}
 }

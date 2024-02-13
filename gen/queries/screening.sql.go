@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const endScreening = `-- name: EndScreening :execresult
@@ -21,6 +22,46 @@ where screening.id = $1
 
 func (q *Queries) EndScreening(ctx context.Context, screeningID uuid.UUID) (sql.Result, error) {
 	return q.db.ExecContext(ctx, endScreening, screeningID)
+}
+
+const getScreeningHistory = `-- name: GetScreeningHistory :many
+select
+    screening.tape_id,
+    array_agg(
+        distinct screening.broadcast_id
+        order by screening.broadcast_id
+    )::integer[] as broadcast_ids
+from broadcasts.screening
+group by screening.tape_id
+order by screening.tape_id
+`
+
+type GetScreeningHistoryRow struct {
+	TapeID       int32
+	BroadcastIds []int32
+}
+
+func (q *Queries) GetScreeningHistory(ctx context.Context) ([]GetScreeningHistoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getScreeningHistory)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetScreeningHistoryRow
+	for rows.Next() {
+		var i GetScreeningHistoryRow
+		if err := rows.Scan(&i.TapeID, pq.Array(&i.BroadcastIds)); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const startScreening = `-- name: StartScreening :one

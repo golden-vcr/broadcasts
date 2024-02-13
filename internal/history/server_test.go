@@ -329,3 +329,7 @@ func (m *mockQueries) GetBroadcastDataEx(ctx context.Context, arg queries.GetBro
 	}
 	return results, nil
 }
+
+func (m *mockQueries) GetScreeningHistory(ctx context.Context) ([]queries.GetScreeningHistoryRow, error) {
+	return nil, fmt.Errorf("not mocked")
+}

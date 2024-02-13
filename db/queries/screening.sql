@@ -1,3 +1,14 @@
+-- name: GetScreeningHistory :many
+select
+    screening.tape_id,
+    array_agg(
+        distinct screening.broadcast_id
+        order by screening.broadcast_id
+    )::integer[] as broadcast_ids
+from broadcasts.screening
+group by screening.tape_id
+order by screening.tape_id;
+
 -- name: StartScreening :one
 insert into broadcasts.screening (
     id,

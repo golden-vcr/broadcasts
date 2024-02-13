@@ -6,12 +6,12 @@ import (
 	"github.com/google/uuid"
 )
 
-type State struct {
-	CurrentBroadcast *Broadcast `json:"currentBroadcast"`
-}
-
 type History struct {
 	Broadcasts []Broadcast `json:"broadcasts"`
+}
+
+type ScreeningHistory struct {
+	BroadcastIdsByTapeId map[string][]int `json:"broadcastIdsByTapeId"`
 }
 
 type Broadcast struct {

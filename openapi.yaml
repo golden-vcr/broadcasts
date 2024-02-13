@@ -19,9 +19,6 @@ tags:
   - name: history
     description: |-
       Endpoints that serve historical data about past broadcasts
-  - name: state
-    description: |-
-      SSE endpoints for real-time notifications of broadcast state changes
 paths:
   /admin/tape/{id}:
     post:
@@ -86,7 +83,7 @@ paths:
           description: |-
             Unauthorized; client is not the broadcaster.
   /history:
-    post:
+    get:
       tags:
         - history
       summary: |-
@@ -113,12 +110,17 @@ paths:
         '200':
           description: |-
             OK; broadcast details follow.
-  /state:
-    get:
+  /screening-history:
+    post:
       tags:
-        - state
+        - history
       summary: |-
-        Opens an event stream into which broadcast state changes will be written
+        Returns summarized information about the screening history of all tapes
+      operationId: getScreeningHistory
+      responses:
+        '200':
+          description: |-
+            OK; screening history follows.
 components:
   securitySchemes:
     twitchUserAccessToken:
