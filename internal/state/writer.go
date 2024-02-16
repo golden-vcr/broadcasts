@@ -196,7 +196,7 @@ func (w *writer) EndCurrentScreening(ctx context.Context) error {
 
 	// Require that we have a screening in progress in order to end it
 	var lastScreening *broadcasts.Screening
-	if len(rows[0].Screenings) == 0 {
+	if len(rows[0].Screenings) > 0 {
 		lastScreening = &rows[0].Screenings[len(rows[0].Screenings)-1]
 	}
 	if lastScreening == nil || lastScreening.EndedAt != nil {
