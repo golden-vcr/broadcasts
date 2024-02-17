@@ -33,7 +33,7 @@ select
             'tape_id', screening.tape_id,
             'started_at', screening.started_at,
             'ended_at', coalesce(screening.ended_at, broadcast.ended_at)
-        )) filter (where screening.id is not null),
+        ) order by screening.started_at) filter (where screening.id is not null),
         '[]'::json
      )::json as screenings
 from broadcasts.broadcast
